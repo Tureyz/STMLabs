@@ -1,11 +1,12 @@
 #include "lab1.hpp"
+#include "lab2.hpp"
 
 
 int main()
-{
-
-	STMLab1::Ex1();
+{	
+	STMLab2::Ex1();
 	std::cout << "----------------------" << std::endl;
-	STMLab1::Ex2();
+	STMLab2::Ex2();
+
 	return 0;
 }
