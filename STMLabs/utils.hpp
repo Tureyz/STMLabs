@@ -3,6 +3,7 @@
 #include <vector>
 #include <iostream>
 #include <fstream>
+#include <cmath>
 
 namespace Utils
 {
@@ -23,11 +24,15 @@ namespace Utils
 		ShannonFaroNode(std::string value) : m_symbol(value) { m_left = m_right = NULL; }
 	};
 
+	template <typename T> int sgn(T val)
+	{
+		return (T(0) < val) - (val < T(0));
+	}
 
-	std::vector<unsigned char> LoadWavFile(std::string path)
+	std::vector<unsigned char> LoadWavFileRaw(std::string path)
 	{
 		std::ifstream input(path, std::ios::binary);
-		
+
 		return std::vector<unsigned char>((std::istreambuf_iterator<char>(input)), (std::istreambuf_iterator<char>()));
 	}
 
@@ -48,7 +53,7 @@ namespace Utils
 	}
 
 
-	size_t getFieldFromAudioFile(std::vector<unsigned char> file, int start, int offset, bool littleEndian = true)
+	size_t getFieldFromAudioFile(std::vector<unsigned char> &file, int start, int offset, bool littleEndian = true)
 	{
 		size_t result = 0;
 		for (int i = start; i < start + offset; ++i)
@@ -60,7 +65,7 @@ namespace Utils
 	}
 
 
-	class WaveFile
+	class WaveStr
 	{
 	public:
 		std::string m_chunkID;
@@ -73,6 +78,60 @@ namespace Utils
 		uint16_t m_blockAlign;
 		std::string m_subChunk2ID;
 		uint32_t m_subChunk2Size;
+		std::vector<unsigned char> m_data;
+		std::vector<short> m_dataLong;
+
+		uint16_t m_numChannels;
+		uint32_t m_sampleRate;
+		uint16_t m_bitsPerSample;
+
+
+		static WaveStr LoadFromFile(std::string path)
+		{
+			WaveStr result;
+			std::vector<unsigned char> soundFileRaw = Utils::LoadWavFileRaw(path);
+
+
+			result.m_chunkSize = Utils::getFieldFromAudioFile(soundFileRaw, 4, 4);
+			result.m_numChannels = Utils::getFieldFromAudioFile(soundFileRaw, 22, 2);
+			result.m_sampleRate = Utils::getFieldFromAudioFile(soundFileRaw, 24, 4);
+			result.m_byteRate = Utils::getFieldFromAudioFile(soundFileRaw, 28, 4);
+			result.m_blockAlign = Utils::getFieldFromAudioFile(soundFileRaw, 32, 2);
+			result.m_bitsPerSample = Utils::getFieldFromAudioFile(soundFileRaw, 34, 2);
+			result.m_subChunk2Size = Utils::getFieldFromAudioFile(soundFileRaw, 40, 4);
+
+
+
+			if (result.m_bitsPerSample == 8)
+			{
+				result.m_data = std::vector<unsigned char>(soundFileRaw.begin() + 44, soundFileRaw.end());
+			}
+			else
+			{
+				const short *data = reinterpret_cast<const short*>(soundFileRaw.data() + 44);
+				result.m_dataLong = std::vector<short>(data, data + result.m_subChunk2Size / sizeof(short));
+			}
+
+
+			return result;
+		}
+
+		WaveStr(uint16_t numChannels, uint16_t bitsPerSample, uint32_t sampleRate)
+		{
+			m_chunkID = "RIFF";
+			m_format = "WAVE";
+			m_subChunk1ID = "fmt ";
+			m_subChunk2ID = "data";
+			m_subChunk1Size = 16;
+			m_audioFormat = 1;
+
+			m_numChannels = numChannels;
+			m_bitsPerSample = bitsPerSample;
+			m_sampleRate = sampleRate;
+
+			m_blockAlign = m_numChannels * m_bitsPerSample / 8;
+			m_byteRate = m_sampleRate * m_blockAlign;
+		}
 
 		void SetNumChannels(std::size_t val)
 		{
@@ -97,7 +156,7 @@ namespace Utils
 		}
 
 		void SetSampleRate(std::size_t val)
-		{ 
+		{
 			m_sampleRate = val;
 
 			m_byteRate = m_sampleRate * m_blockAlign;
@@ -111,7 +170,7 @@ namespace Utils
 			m_byteRate = m_sampleRate * m_blockAlign;
 		}
 
-		WaveFile()
+		WaveStr()
 		{
 			m_chunkID = "RIFF";
 			m_format = "WAVE";
@@ -145,23 +204,79 @@ namespace Utils
 
 				if (m_bitsPerSample == 8)
 				{
-					outputFile.write((char *) m_data.data(), m_data.size());
+					outputFile.write((char *)m_data.data(), m_data.size());
 				}
 				else
 				{
-					outputFile.write((char *) m_dataLong.data(), m_dataLong.size() * sizeof(short));
+					outputFile.write((char *)m_dataLong.data(), m_dataLong.size() * sizeof(short));
 				}
 
 				outputFile.close();
 			}
 		}
 
+		void EncodeMu()
+		{
+			SetBitsPerSample(8);
+
+			for (short el : m_dataLong)
+			{
+				m_data.push_back(static_cast<unsigned char>(floor(128 * M(static_cast<float>(el) / 32768))));
+			}
+
+			m_dataLong.clear();
+			m_subChunk2Size = m_data.size();
+			m_chunkSize = 36 + m_subChunk2Size;
+		}
+
+		void DecodeMu()
+		{
+			SetBitsPerSample(16);
+
+			for (unsigned char el : m_data)
+			{
+
+				m_dataLong.push_back(static_cast<short>(ceil(D(static_cast<float>(el) / 128) * 32768)));
+			}
+
+			m_data.clear();
+			m_subChunk2Size = m_dataLong.size() * sizeof(short);
+			m_chunkSize = 36 + m_subChunk2Size;
+		}
+
+		std::vector<uint16_t> ComputeHistogram()
+		{
+			if (m_bitsPerSample == 8)
+			{
+				std::vector<uint16_t> result(256, 0);
+
+				for (auto el : m_data)
+				{
+					result[el]++;
+				}
+				return result;
+			}
+			else
+			{
+				std::vector<uint16_t> result(32768, 0);
+				for (auto el : m_dataLong)
+				{
+					result[el]++;
+				}
+				return result;
+			}			
+		}
+
 	private:
-		std::vector<unsigned char> m_data;
-		std::vector<short> m_dataLong;
-		
-		uint16_t m_numChannels;
-		uint32_t m_sampleRate;
-		uint16_t m_bitsPerSample;
+
+		float M(float x)
+		{
+			return sgn(x) * (log(1 + 255 * abs(x)) / 5.5452);
+		}
+
+		float D(float x)
+		{
+			return sgn(x) * ((pow(256, abs(x)) - 1) / 255);
+		}
 	};
 }

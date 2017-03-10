@@ -4,28 +4,24 @@
 
 namespace STMLab2
 {
-	void Ex1()
+	void Ex1n2()
 	{
-		std::vector<unsigned char> soundFile = Utils::LoadWavFile("input/sound1.wav");
+		std::string inputPath = "input/beep.wav";
 
-		std::cout << "input/sound1.wav" << std::endl;
-		std::cout << "File size: " << Utils::bytesToHumanReadable(Utils::getFieldFromAudioFile(soundFile, 4, 4)) << std::endl;
-		std::cout << "Format: ";
+		Utils::WaveStr soundFile = Utils::WaveStr::LoadFromFile(inputPath);
 
-		for (int i = 8; i < 8 + 4; ++i)
-		{
-			std::cout << soundFile[i];
-		}
-
-		std::cout << std::endl << "Audio format: " << Utils::getFieldFromAudioFile(soundFile, 20, 2) << std::endl;
-		std::cout << "Number of channels: " << Utils::getFieldFromAudioFile(soundFile, 22, 2) << std::endl;
-		std::cout << "Sample rate: " << Utils::getFieldFromAudioFile(soundFile, 24, 4) << std::endl;
-		std::cout << "Bits per sample: " << Utils::getFieldFromAudioFile(soundFile, 34, 2) << std::endl;
+		std::cout << inputPath << std::endl;
+		std::cout << "File size: " << Utils::bytesToHumanReadable(soundFile.m_chunkSize) << std::endl;
+		std::cout << "Format: " << soundFile.m_format << std::endl;
+		std::cout << "Audio format: " << soundFile.m_audioFormat << std::endl;
+		std::cout << "Number of channels: " << soundFile.m_numChannels << std::endl;
+		std::cout << "Sample rate: " << soundFile.m_sampleRate << std::endl;
+		std::cout << "Bits per sample: " << soundFile.m_bitsPerSample << std::endl;
 		std::cout << "Data: " << std::endl;
 
-		for (int i = 44; i < 44 + 100; ++i)
+		for (int i = 0; i < 100; ++i)
 		{
-			std::cout << (int)soundFile[i] << " ";
+			std::cout << soundFile.m_dataLong[i] << " ";
 		}
 
 		std::cout << std::endl << "Interrupted after 100 entries." << std::endl;
@@ -37,10 +33,7 @@ namespace STMLab2
 	{
 
 
-		Utils::WaveFile sound2a;
-		sound2a.SetNumChannels(1);
-		sound2a.SetBitsPerSample(16);
-		sound2a.SetSampleRate(8000);
+		Utils::WaveStr sound2a(1, 16, 8000);
 
 		std::vector<short> data2a;
 
@@ -56,10 +49,7 @@ namespace STMLab2
 		sound2a.WriteToFile("output/ex2a.wav");
 
 
-		Utils::WaveFile sound2b;
-		sound2b.SetNumChannels(1);
-		sound2b.SetBitsPerSample(16);
-		sound2b.SetSampleRate(8000);
+		Utils::WaveStr sound2b(1, 16, 8000);
 
 		std::vector<short> data2b;
 		sineFreq = 1000;
@@ -74,10 +64,7 @@ namespace STMLab2
 		sound2b.WriteToFile("output/ex2b.wav");
 
 
-		Utils::WaveFile sound2c;
-		sound2c.SetNumChannels(1);
-		sound2c.SetBitsPerSample(16);
-		sound2c.SetSampleRate(8000);
+		Utils::WaveStr sound2c(1, 16, 8000);
 
 		std::vector<short> data2c;
 		for (int i = 0; i < 16000; ++i)

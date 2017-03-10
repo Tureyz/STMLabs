@@ -29,5 +29,8 @@
     <ClInclude Include="lab2.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="lab3.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
