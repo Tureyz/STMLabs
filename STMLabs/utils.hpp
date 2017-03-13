@@ -221,7 +221,7 @@ namespace Utils
 
 			for (short el : m_dataLong)
 			{
-				m_data.push_back(static_cast<unsigned char>(floor(128 * M(static_cast<float>(el) / 32768))));
+				m_data.push_back(128 + static_cast<unsigned char>(floor(128 * M(static_cast<float>(el) / 32768))));
 			}
 
 			m_dataLong.clear();
@@ -236,7 +236,7 @@ namespace Utils
 			for (unsigned char el : m_data)
 			{
 
-				m_dataLong.push_back(static_cast<short>(ceil(D(static_cast<float>(el) / 128) * 32768)));
+				m_dataLong.push_back(static_cast<short>(ceil(D(static_cast<float>(el - 128) / 128) * 32768)));
 			}
 
 			m_data.clear();
