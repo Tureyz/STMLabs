@@ -7,6 +7,7 @@
 
 namespace Utils
 {
+	const float e = 2.7182818;
 
 	class ShannonFaroNode
 	{
@@ -80,6 +81,7 @@ namespace Utils
 		uint32_t m_subChunk2Size;
 		std::vector<unsigned char> m_data;
 		std::vector<short> m_dataLong;
+		std::vector<float> m_dbfsLong;
 
 		uint16_t m_numChannels;
 		uint32_t m_sampleRate;
@@ -110,6 +112,7 @@ namespace Utils
 			{
 				const short *data = reinterpret_cast<const short*>(soundFileRaw.data() + 44);
 				result.m_dataLong = std::vector<short>(data, data + result.m_subChunk2Size / sizeof(short));
+				result.m_dbfsLong.resize(result.m_dataLong.size());
 			}
 
 
@@ -153,6 +156,8 @@ namespace Utils
 			m_dataLong = val;
 			m_subChunk2Size = m_dataLong.size() * sizeof(short);
 			m_chunkSize = 36 + m_subChunk2Size;
+
+			m_dbfsLong.resize(m_dataLong.size());
 		}
 
 		void SetSampleRate(std::size_t val)
@@ -267,6 +272,55 @@ namespace Utils
 			}			
 		}
 
+
+		void DBFSScale()
+		{
+			for (int i = 0; i < m_dataLong.size(); ++i)
+			{
+				m_dbfsLong[i] = ToDBFS(m_dataLong[i]);
+			}
+		}
+
+		void Compress(float threshold, float compressFactor, float which)
+		{
+			short pcmThreshold = FromDBFS(threshold);
+
+			for (int i = 0; i < m_dataLong.size(); ++i)
+			{
+				if (m_dbfsLong[i] > threshold && !which)
+				{
+					m_dataLong[i] = sgn(m_dataLong[i]) * abs(pcmThreshold) + sgn(m_dataLong[i]) * abs((m_dataLong[i] - pcmThreshold) / compressFactor);
+				}
+				else if (m_dbfsLong[i] < threshold && which)
+				{
+					m_dataLong[i] = sgn(m_dataLong[i]) * abs(pcmThreshold) + sgn(m_dataLong[i]) * abs((m_dataLong[i] - pcmThreshold) * compressFactor);
+				}
+			}
+		}
+
+
+		void DBFSNormalize()
+		{
+
+			float maxAmpl = -9999999999999999999999.f;
+
+
+			for (auto el : m_dataLong)
+			{
+				if (el > maxAmpl)
+				{
+					maxAmpl = el;
+				}
+			}
+
+			float amplifyFactor = abs(pow(2, 16 - 1) / maxAmpl);
+
+			for (int i = 0; i < m_dataLong.size(); ++i)
+			{
+				m_dataLong[i] *= amplifyFactor;
+			}
+		}
+
 	private:
 
 		float M(float x)
@@ -278,5 +332,18 @@ namespace Utils
 		{
 			return sgn(x) * ((pow(256, abs(x)) - 1) / 255);
 		}
+
+		float ToDBFS(short x)
+		{
+			return 20 * log10(abs(x) / pow(2, 16 - 1));
+		}
+
+
+		short FromDBFS(float x)
+		{
+			return pow(2, 16 - 1) * pow(e, (1.f / 20) * x * (log(2) + log(5)));
+		}
+
+
 	};
 }
