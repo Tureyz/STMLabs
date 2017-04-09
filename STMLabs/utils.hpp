@@ -8,6 +8,19 @@
 namespace Utils
 {
 	const float e = 2.7182818;
+	const float PI = 3.14159;
+
+	std::vector<short> GenerateSine(float sampleRate, float freq, float maxAmpl, float resultSize)
+	{
+		std::vector<short> result;
+
+		for (int i = 0; i < resultSize; ++i)
+		{
+			result.push_back((sin(i * 2 * PI / sampleRate * freq) + 1) * maxAmpl);
+		}
+
+		return result;
+	}
 
 	class ShannonFaroNode
 	{
@@ -269,7 +282,7 @@ namespace Utils
 					result[el]++;
 				}
 				return result;
-			}			
+			}
 		}
 
 
@@ -346,4 +359,78 @@ namespace Utils
 
 
 	};
+
+
+	std::vector<std::pair<float, float>> DFT(Utils::WaveStr &sound)
+	{
+		std::vector<std::pair<float, float>> result;
+
+		for (int i = 0; i < sound.m_dataLong.size(); ++i)
+		{
+			std::pair<float, float> xk;
+
+			for (int j = 0; j < sound.m_dataLong.size(); ++j)
+			{
+				float exp = 2 * PI * i * j / sound.m_dataLong.size();
+
+				xk.first += sound.m_dataLong[j] * cos(exp);
+				xk.second -= sound.m_dataLong[j] * sin(exp);
+			}
+
+			result.push_back(xk);
+		}
+
+		return result;
+	}
+
+	std::vector<short> IFT(std::vector<std::pair<float, float>> values)
+	{
+
+		std::vector<short> result;
+
+		for (int i = 0; i < values.size(); ++i)
+		{
+			std::pair<float, float> partial;
+
+			for (int j = 0; j < values.size(); ++j)
+			{
+				float exp = 2 * PI * i * j / values.size();
+				partial.first += values[j].first * cos(exp);
+				partial.second += values[j].second * sin(exp);
+			}
+
+			result.push_back((partial.first - partial.second) / values.size());
+		}
+
+		return result;
+	}
+
+	std::vector<float> DFTMag(Utils::WaveStr &sound)
+	{
+		std::vector<float> result;
+
+		for (auto xk : DFT(sound))
+		{
+			result.push_back(sqrt(xk.first * xk.first + xk.second * xk.second));
+		}
+
+		return result;
+	}
+
+	void MagToCSV(std::vector<float> mag, std::string outputPath)
+	{
+		std::ofstream outputFile(outputPath);
+
+		if (outputFile.is_open())
+		{
+			outputFile << "Index,Magnitude" << std::endl;
+
+			for (int i = 0; i < mag.size(); ++i)
+			{
+				outputFile << i << "," << mag[i] << std::endl;
+			}
+
+			outputFile.close();
+		}
+	}
 }
