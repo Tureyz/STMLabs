@@ -16,7 +16,7 @@ namespace Utils
 
 		for (int i = 0; i < resultSize; ++i)
 		{
-			result.push_back((sin(i * 2 * PI / sampleRate * freq) + 1) * maxAmpl);
+			result.push_back(sin(i * 2 * PI / sampleRate * freq) * maxAmpl);
 		}
 
 		return result;
@@ -78,6 +78,20 @@ namespace Utils
 		return result;
 	}
 
+
+	std::vector<float> CreateLowPass(int cutoff, int length, int sampleRate)
+	{
+		std::vector<float> result;
+
+		result.push_back(2 * cutoff / sampleRate);
+
+		for (int i = 1; i < length; ++i)
+		{
+			result.push_back(sin(2 * PI * cutoff * i / sampleRate) / (PI * i));
+		}
+
+		return result;
+	}
 
 	class WaveStr
 	{
@@ -302,11 +316,11 @@ namespace Utils
 			{
 				if (m_dbfsLong[i] > threshold && !which)
 				{
-					m_dataLong[i] = sgn(m_dataLong[i]) * abs(pcmThreshold) + sgn(m_dataLong[i]) * abs((m_dataLong[i] - pcmThreshold) / compressFactor);
+					m_dataLong[i] = Utils::sgn(m_dataLong[i]) * abs(pcmThreshold) + Utils::sgn(m_dataLong[i]) * abs((m_dataLong[i] - pcmThreshold) / compressFactor);
 				}
 				else if (m_dbfsLong[i] < threshold && which)
 				{
-					m_dataLong[i] = sgn(m_dataLong[i]) * abs(pcmThreshold) + sgn(m_dataLong[i]) * abs((m_dataLong[i] - pcmThreshold) * compressFactor);
+					m_dataLong[i] = Utils::sgn(m_dataLong[i]) * abs(pcmThreshold) + Utils::sgn(m_dataLong[i]) * abs((m_dataLong[i] - pcmThreshold) * compressFactor);
 				}
 			}
 		}
@@ -334,16 +348,95 @@ namespace Utils
 			}
 		}
 
+		void ApplyLowPass(float threshold)
+		{
+			auto filter = Utils::CreateLowPass(threshold, m_dataLong.size(), m_sampleRate);
+
+
+			auto dft = DFT(*this);
+
+			for (int i = 0; i < dft.size(); ++i)
+			{
+				std::pair<float, float> acc(0, 0);
+
+				for (int j = 0; j < 9 && i - j >= 0; ++j)
+				{
+					acc.first += filter[j] * dft[i - j].first;
+					acc.second += filter[j] * dft[i - j].second;
+				}
+
+				dft[i] = acc;
+			}
+
+			this->SetDataLong(IFT(dft));
+		}
+
+		static std::vector<std::pair<float, float>> DFT(WaveStr &sound)
+		{
+			std::vector<std::pair<float, float>> result;
+
+			for (int i = 0; i < sound.m_dataLong.size(); ++i)
+			{
+				std::pair<float, float> xk;
+
+				for (int j = 0; j < sound.m_dataLong.size(); ++j)
+				{
+					float exp = 2 * PI * i * j / sound.m_dataLong.size();
+
+					xk.first += sound.m_dataLong[j] * cos(exp);
+					xk.second -= sound.m_dataLong[j] * sin(exp);
+				}
+
+				result.push_back(xk);
+			}
+
+			return result;
+		}
+
+		static std::vector<short> IFT(std::vector<std::pair<float, float>> values)
+		{
+
+			std::vector<short> result;
+
+			for (int i = 0; i < values.size(); ++i)
+			{
+				std::pair<float, float> partial;
+
+				for (int j = 0; j < values.size(); ++j)
+				{
+					float exp = 2 * PI * i * j / values.size();
+					partial.first += values[j].first * cos(exp);
+					partial.second += values[j].second * sin(exp);
+				}
+
+				result.push_back((partial.first - partial.second) / values.size());
+			}
+
+			return result;
+		}
+
+		static std::vector<float> DFTMag(WaveStr &sound)
+		{
+			std::vector<float> result;
+
+			for (auto xk : DFT(sound))
+			{
+				result.push_back(sqrt(xk.first * xk.first + xk.second * xk.second));
+			}
+
+			return result;
+		}
+
 	private:
 
 		float M(float x)
 		{
-			return sgn(x) * (log(1 + 255 * abs(x)) / 5.5452);
+			return Utils::sgn(x) * (log(1 + 255 * abs(x)) / 5.5452);
 		}
 
 		float D(float x)
 		{
-			return sgn(x) * ((pow(256, abs(x)) - 1) / 255);
+			return Utils::sgn(x) * ((pow(256, abs(x)) - 1) / 255);
 		}
 
 		float ToDBFS(short x)
@@ -354,68 +447,15 @@ namespace Utils
 
 		short FromDBFS(float x)
 		{
-			return pow(2, 16 - 1) * pow(e, (1.f / 20) * x * (log(2) + log(5)));
+			return pow(2, 16 - 1) * pow(Utils::e, (1.f / 20) * x * (log(2) + log(5)));
 		}
 
 
 	};
 
 
-	std::vector<std::pair<float, float>> DFT(Utils::WaveStr &sound)
-	{
-		std::vector<std::pair<float, float>> result;
 
-		for (int i = 0; i < sound.m_dataLong.size(); ++i)
-		{
-			std::pair<float, float> xk;
 
-			for (int j = 0; j < sound.m_dataLong.size(); ++j)
-			{
-				float exp = 2 * PI * i * j / sound.m_dataLong.size();
-
-				xk.first += sound.m_dataLong[j] * cos(exp);
-				xk.second -= sound.m_dataLong[j] * sin(exp);
-			}
-
-			result.push_back(xk);
-		}
-
-		return result;
-	}
-
-	std::vector<short> IFT(std::vector<std::pair<float, float>> values)
-	{
-
-		std::vector<short> result;
-
-		for (int i = 0; i < values.size(); ++i)
-		{
-			std::pair<float, float> partial;
-
-			for (int j = 0; j < values.size(); ++j)
-			{
-				float exp = 2 * PI * i * j / values.size();
-				partial.first += values[j].first * cos(exp);
-				partial.second += values[j].second * sin(exp);
-			}
-
-			result.push_back((partial.first - partial.second) / values.size());
-		}
-
-		return result;
-	}
-
-	std::vector<float> DFTMag(Utils::WaveStr &sound)
-	{
-		std::vector<float> result;
-
-		for (auto xk : DFT(sound))
-		{
-			result.push_back(sqrt(xk.first * xk.first + xk.second * xk.second));
-		}
-
-		return result;
-	}
 
 	void MagToCSV(std::vector<float> mag, std::string outputPath)
 	{
@@ -433,4 +473,9 @@ namespace Utils
 			outputFile.close();
 		}
 	}
+
+#pragma once
+
+#include "utils.hpp"
+
 }

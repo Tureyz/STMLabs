@@ -29,9 +29,9 @@ namespace STMLab5
 
 
 
-		std::vector<float> mag1 = Utils::DFTMag(sound1);
-		std::vector<float> mag2 = Utils::DFTMag(sound2);
-		std::vector<float> mag3 = Utils::DFTMag(sound3);
+		std::vector<float> mag1 = Utils::WaveStr::DFTMag(sound1);
+		std::vector<float> mag2 = Utils::WaveStr::DFTMag(sound2);
+		std::vector<float> mag3 = Utils::WaveStr::DFTMag(sound3);
 
 
 		Utils::MagToCSV(mag1, outputPath + "mag1.csv");
@@ -40,7 +40,7 @@ namespace STMLab5
 
 
 		Utils::WaveStr sound4(1, 15, 8000);
-		sound4.SetDataLong(Utils::IFT(Utils::DFT(sound3)));
+		sound4.SetDataLong(Utils::WaveStr::IFT(Utils::WaveStr::DFT(sound3)));
 		sound4.WriteToFile(outputPath + "sin4.wav");
 	}
 }
