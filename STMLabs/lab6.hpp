@@ -23,7 +23,25 @@ namespace STMLab6
 
 		sound3.SetDataLong(s3Data);
 		sound3.WriteToFile(outputPath + "sin3.wav");
-		sound3.ApplyLowPass(4000);
+
+
+		sound3.DFTFilter(400, 0, 0);
 		sound3.WriteToFile(outputPath + "sin3LOW.wav");
+
+		sound3.SetDataLong(s3Data);
+		sound3.DFTFilter(0, 400, 1);
+		sound3.WriteToFile(outputPath + "sin3HIGH.wav");
+
+		sound3.SetDataLong(s3Data);
+		sound3.DFTFilter(0, 400, 2);
+		sound3.WriteToFile(outputPath + "sin3BP.wav");
+
+		sound3.SetDataLong(s3Data);
+		sound3.DFTFilter(0, 400, 3);
+		sound3.WriteToFile(outputPath + "sin3BR.wav");
+
+		sound3.SetDataLong(s3Data);
+		sound3.ApplyFIRLowPass(1000, 15);
+		sound3.WriteToFile(outputPath + "sin3FIRLOW.wav");
 	}
 }

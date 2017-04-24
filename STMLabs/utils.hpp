@@ -7,8 +7,8 @@
 
 namespace Utils
 {
-	const float e = 2.7182818;
-	const float PI = 3.14159;
+	const float e = 2.7182818f;
+	const float PI = 3.14159f;
 
 	std::vector<short> GenerateSine(float sampleRate, float freq, float maxAmpl, float resultSize)
 	{
@@ -79,19 +79,45 @@ namespace Utils
 	}
 
 
-	std::vector<float> CreateLowPass(int cutoff, int length, int sampleRate)
+	std::vector<float> CreateLowPass(int cutoff, int sampleRate, int filterOrder)
 	{
-		std::vector<float> result;
+		std::vector<float> result(filterOrder, 0);
 
-		result.push_back(2 * cutoff / sampleRate);
+		float fc = static_cast<float>(cutoff) / sampleRate;
+		int middle = filterOrder / 2;
 
-		for (int i = 1; i < length; ++i)
+		for (int n = -filterOrder / 2; n < filterOrder / 2; ++n)
 		{
-			result.push_back(sin(2 * PI * cutoff * i / sampleRate) / (PI * i));
+			result[middle + n] = n == 0 ? 2.f * fc : sin(2.f * PI * fc * n) / (PI * n);
 		}
 
+		for (int n = 0; n < filterOrder; ++n)
+		{
+			result[n] *= 0.5f + 0.5f * cos((2.f * PI * n) / filterOrder);
+		}
+		
 		return result;
 	}
+
+	float DFTLowPass(float inValue, float threshold)
+	{
+		return inValue < threshold ? inValue : 0;
+	}
+
+	float DFTHighPass(float inValue, float threshold)
+	{
+		return inValue > threshold ? inValue : 0;
+	}
+
+	float DFTBandPass(float inValue, float lowThreshold, float highThreshold)
+	{
+		return inValue > lowThreshold && inValue <= highThreshold ? inValue : 0;
+	}
+
+	float DFTBandReject(float inValue, float lowThreshold, float highThreshold)
+	{
+		return inValue <= lowThreshold || inValue > highThreshold ? inValue : 0;
+	}	
 
 	class WaveStr
 	{
@@ -348,27 +374,62 @@ namespace Utils
 			}
 		}
 
-		void ApplyLowPass(float threshold)
+		void DFTFilter(float lowThresh, float highThresh, int filterType)
 		{
-			auto filter = Utils::CreateLowPass(threshold, m_dataLong.size(), m_sampleRate);
-
-
 			auto dft = DFT(*this);
 
-			for (int i = 0; i < dft.size(); ++i)
-			{
-				std::pair<float, float> acc(0, 0);
+			for (int i = 0; i < dft.size(); ++i)			
+			{		
 
-				for (int j = 0; j < 9 && i - j >= 0; ++j)
+				std::pair<float, float> temp;
+				switch (filterType)
 				{
-					acc.first += filter[j] * dft[i - j].first;
-					acc.second += filter[j] * dft[i - j].second;
+				case 0:
+					temp.first = Utils::DFTLowPass(dft[i].first, lowThresh);
+					temp.second = Utils::DFTLowPass(dft[i].second, lowThresh);
+					break;
+				case 1:
+					temp.first = Utils::DFTHighPass(dft[i].first, highThresh);
+					temp.second = Utils::DFTHighPass(dft[i].second, highThresh);
+					break;
+				case 2:
+					temp.first = Utils::DFTBandPass(dft[i].first, lowThresh, highThresh);
+					temp.second = Utils::DFTBandPass(dft[i].second, lowThresh, highThresh);
+					break;
+				case 3:
+					temp.first = Utils::DFTBandReject(dft[i].first, lowThresh, highThresh);
+					temp.second = Utils::DFTBandReject(dft[i].second, lowThresh, highThresh);
+					break;
+				default:
+					break;
 				}
 
-				dft[i] = acc;
+				dft[i] = temp;
+
 			}
 
 			this->SetDataLong(IFT(dft));
+		}
+
+
+		void ApplyFIRLowPass(float threshold, int filterOrder)
+		{
+
+
+			auto filter = Utils::CreateLowPass(threshold, m_sampleRate, filterOrder);
+
+
+			for (int i = 0; i < m_dataLong.size(); ++i)
+			{
+				float acc = 0;
+
+				for (int j = 0; j < filterOrder && i - j >= 0; ++j)
+				{
+					acc += filter[j] * m_dataLong[i - j];
+				}
+
+				m_dataLong[i] = static_cast<short>(acc);
+			}
 		}
 
 		static std::vector<std::pair<float, float>> DFT(WaveStr &sound)
@@ -454,9 +515,6 @@ namespace Utils
 	};
 
 
-
-
-
 	void MagToCSV(std::vector<float> mag, std::string outputPath)
 	{
 		std::ofstream outputFile(outputPath);
@@ -473,9 +531,5 @@ namespace Utils
 			outputFile.close();
 		}
 	}
-
-#pragma once
-
-#include "utils.hpp"
 
 }
